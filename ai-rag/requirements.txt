@@ -1,0 +1,8 @@
+fastapi
+uvicorn
+pymongo
+python-multipart
+openai
+chromadb
+unstructured
+python-dotenv
