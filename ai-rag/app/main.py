@@ -4,6 +4,7 @@ from app.routers import upload  # ensure module path matches your project
 from fastapi import Body
 from datetime import datetime
 from app.db.models import Post
+from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI()
 
@@ -41,3 +42,17 @@ async def get_posts():
         ]
     return {"posts": posts}
 
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3000"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Register routers
+app.include_router(upload.router)
+
+@app.get("/")
+def root():
+    return {"message": "AI-RAG backend running"}

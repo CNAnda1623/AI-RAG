@@ -78,14 +78,34 @@ const FileUpload = () => {
     }
   };
 
-  const handleUpload = () => {
-    if (!selectedFile) {
-      showToast('Please select a file first', 'error');
-      return;
+  const handleUpload = async () => {
+  if (!selectedFile) {
+    showToast('Please select a file first', 'error');
+    return;
+  }
+
+  try {
+    const formData = new FormData();
+    formData.append("file", selectedFile);
+
+    const response = await fetch("http://127.0.0.1:8000/api/files/upload", {
+      method: "POST",
+      body: formData,
+    });
+
+    const result = await response.json();
+
+    if (response.ok) {
+      showToast("File uploaded successfully!", "success");
+      console.log("Uploaded file URL:", result.url);
+    } else {
+      showToast(`Upload failed: ${result.detail}`, "error");
     }
-    // Simulate upload process
-    showToast('File uploaded successfully!', 'success');
-  };
+  } catch (err) {
+    console.error(err);
+    showToast("An error occurred while uploading", "error");
+  }
+};
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-black via-gray-900 to-blue-900 p-8 flex items-center justify-center">

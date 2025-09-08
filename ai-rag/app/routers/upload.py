@@ -1,82 +1,29 @@
-# app/routers/upload.py
-from fastapi import APIRouter, File, UploadFile, HTTPException
-from fastapi.responses import HTMLResponse
-from datetime import datetime
-import os
-import re
+from fastapi import APIRouter, UploadFile, File, HTTPException
+from app.services.upload_service import upload_file_to_supabase
+import logging
 
-from app.services.supabase_client import supabase, SUPABASE_BUCKET, SUPABASE_URL
-from app.db.mongo_client import documents_collection
+router = APIRouter(prefix="/api/files", tags=["files"])
 
-router = APIRouter()
-
-
-@router.get("/upload", response_class=HTMLResponse)
-async def upload_form():
-    """Simple HTML form for manual file uploads (testing)."""
-    return """
-    <html><body>
-    <h3>Upload file (POST /upload)</h3>
-    <form action="/upload" enctype="multipart/form-data" method="post">
-      <input name="file" type="file" />
-      <input type="submit" value="Upload"/>
-    </form>
-    </body></html>
-    """
-
+# Configure logging
+logging.basicConfig(level=logging.INFO)
 
 @router.post("/upload")
 async def upload_file(file: UploadFile = File(...)):
     """
-    Handles file upload:
-    - Stores file in Supabase Storage
-    - Saves metadata in MongoDB
-    - Returns stored document info
+    Endpoint to upload a file to Supabase and save metadata to MongoDB.
     """
     try:
-        # Read file contents
-        contents = await file.read()
+        # Log file info without consuming bytes
+        file_bytes = await file.read()
+        file_size = len(file_bytes)
+        logging.info(f"📂 Received file: {file.filename}, size={file_size} bytes")
+        await file.seek(0)  # Reset pointer for upload
 
-        # Extract file extension, default to .pdf
-        file_extension = os.path.splitext(file.filename)[1] or ".pdf"
+        # Upload file via service
+        result = await upload_file_to_supabase(file)
 
-        # Sanitize filename
-        base_name = os.path.splitext(file.filename)[0]
-        safe_base_name = re.sub(r"[^a-zA-Z0-9_.-]", "_", base_name)
+        return result
 
-        # Add timestamp to prevent collisions
-        timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
-        safe_name = f"{timestamp}_{safe_base_name}{file_extension}"
-
-        # Upload file to Supabase Storage
-        upload_res = supabase.storage.from_(SUPABASE_BUCKET).upload(
-            safe_name,
-            contents,
-            {"content-type": file.content_type},
-        )
-
-        # Handle upload error
-        if isinstance(upload_res, dict) and upload_res.get("error"):
-            raise HTTPException(status_code=500, detail=str(upload_res["error"]))
-
-        # Build public URL manually
-        public_url = f"{SUPABASE_URL}/storage/v1/object/public/{SUPABASE_BUCKET}/{safe_name}"
-
-        # Save metadata to MongoDB
-        doc = {
-            "filename": file.filename,
-            "stored_path": safe_name,
-            "public_url": public_url,
-            "content_type": file.content_type,
-            "size_bytes": len(contents),
-            "uploaded_at": datetime.utcnow(),
-        }
-        inserted = documents_collection.insert_one(doc)
-        doc["_id"] = str(inserted.inserted_id)
-
-        return {"success": True, "file": doc}
-
-    except HTTPException:
-        raise
     except Exception as e:
+        logging.error(f"❌ Error in /upload endpoint: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))

@@ -16,7 +16,8 @@ if not MONGO_URI:
 _client = MongoClient(MONGO_URI, tls = True)
 _db = _client[MONGO_DB]
 
-documents_collection = _db["documents"]
+files_collection = _db["documents"]
+files_collection = _db["files"]     
 
 def get_db():
     return _db
